@@ -1,0 +1,107 @@
+-- how many days is the data period ?
+select concat ( max(order_date), ' TO ' , min(order_date) ) as Period
+from Orders ;
+-- option 2
+select DATEDIFF(max(order_date) , min(order_date)) as Period
+from Orders ;
+
+-- how many books do we have in total ?
+select count(x.dis_book)
+from
+		(select distinct(book_name) as dis_book
+		from book_info)x;
+        
+        
+-- Return a table conatining a list of book title that have a higher number of book pages than avg book Pages ?
+select book_name 
+from book_info
+where number_of_pages >
+	(select avg(number_of_pages) as avg_page
+	from book_info) 
+Order by number_of_pages DESC ;
+
+-- which publisher has printed the most books ?
+
+select name ,count(1) as count_book
+from book_info i join
+publisher p on p.publisher_id = i.publisher_id
+group by i.publisher_id
+order by count_book DESC ;
+
+
+-- what is total revenue of book store ?
+select sum((quantity*unit_price)) as Tot_revenue
+from order_items oi
+join orders o on oi.order_id = o.order_id ;
+
+-- how many are sold online ?
+
+select sum(quantity)
+from order_items oi
+join orders o on oi.order_id = o.order_id;
+
+-- which province has the most invoice ?
+select province ,count(1) as count_province
+from customers
+group by province
+order by count_province Desc Limit 3 ;
+
+-- who is the best customer?
+select concat(c.first_name, ' ' ,c.last_name) as Full_name ,count(1) as best_customer
+from customers c join
+orders o on c.customer_id = o.customer_id
+group by concat(c.first_name, ' ' ,c.last_name) 
+order by best_customer desc limit 3 ;
+
+-- who is writing horror books ?
+select  distinct (Author)  , 'horror books' as ' '
+from genre g 
+join book_info i on g.genre_id = i.genre_id
+where g.name = 'Horror';
+
+-- first,find which artist has earned the most according to order_items . 
+	 -- use the artist to find which customer spent the most on this artist?
+	with cte as
+			(select author ,sum(unit_price*quantity) as tot_sales_price
+			from order_items oi 
+			join book_info bi on bi.book_id = oi.product_id
+			group by author
+			order by tot_sales_price Desc limit 1) -- artist name : Yanagihara_Hanya
+select author,c.first_name,c.last_name,sum(unit_price*quantity) as Total_sales
+from order_items oi 
+join orders o on o.order_id = oi.order_id
+join customers c on c.customer_id = o.customer_id
+join book_info bi on bi.book_id = oi.product_id
+where author = (select author from cte)
+group by author,c.first_name,c.last_name
+order by Total_sales Desc ;
+
+        
+-- we want to find the most popular book Genre for each province ( popularity as highest amount of purchase )?
+with cte as
+	(	select gi.name,province, (unit_price* quantity) as Total_price,row_number() over(partition by province order by unit_price* quantity DESC) as rn
+		from order_items oi 
+		join book_info i on oi.product_id = i.book_id
+		join genre gi on gi.genre_id = i.genre_id
+		join orders o on o.order_id = oi.order_id 
+		join customers c on c.customer_id = o.customer_id )
+select name as category ,province ,sum(Total_price) as Total_price
+from cte 
+where rn=1
+group by category ,province
+order by total_price Desc   ;
+
+-- write a query that determines the customer that has spent the most on books for each province ?
+with cte as
+		(select first_name ,province , sum(quantity*unit_price) as sales_price
+		from customers c 
+		join orders o on c.customer_id = o.customer_id
+		join order_items oi on oi.order_id = o.order_id
+		group by province ,first_name),
+	cte1 as
+		(select * ,row_number()over(partition by province order by sales_price desc) as rn
+		from cte)
+select first_name,province,sales_price
+from cte1
+where rn=1 
+order by sales_price Desc;
